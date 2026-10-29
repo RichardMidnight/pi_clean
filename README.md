@@ -1,18 +1,25 @@
 # pi_clean — reclaim space on a Raspberry Pi (and any Linux box)
 
-*pi_clean* scans a Raspberry Pi — or any Debian/Ubuntu Linux system — for reclaimable
-files and removes them **one collection at a time**, each shown with a description,
-its size on disk, and an explicit `y/N` prompt before anything is deleted.
+A single-file bash junk-cleaning tool for Raspberry Pi / general-Linux boxes.
+*pi_clean* scans a box for reclaimable files and removes them **one collection
+at a time**, each shown with a description and its size, with an explicit `y/N`
+prompt before anything is deleted.
 
 - 🍓 Made for the Raspberry Pi, works on most Linux distros
 - 🐧 Plain Bash, no dependencies to install
-- 🔒 **Report-only by default** — nothing is deleted until you opt in, and even
-  then every collection still asks `y/N`
-- 🧾 A `-c` run is logged to `pi_clean.log` next to the script, so a destructive
-  pass is never unrecorded (refuses to clean with no log unless you ask to skip it)
-- 📦 Scans **this machine, a mounted root, or an image/SD card** without booting it
+- 🔒 **Report-only by default** — it deletes nothing unless you pass `-c` and
+  answer `y`; even a `-c` run still asks per collection
+- 🧾 A `-c` run is recorded in `pi_clean.log` next to the script (refuses a
+  destructive run with no log unless `--no-log` is given)
+- 📦 Works on **this machine, a mounted root, or an image / SD card** without booting it
 
----
+## Layout
+
+| Path | Purpose |
+|---|---|
+| `pi_clean.sh` | The entire product (~1,470 lines). 12 numbered module banners — jump: `grep -nE '#   \[[0-9]+\]' pi_clean.sh` |
+| `testing/` | 10 suites, `shim_apt/` (fake chroot/apt-get), `make_base_fix.sh` (fixture builder) |
+| `LICENSE` | GNU GPL v3 |
 
 ## How it behaves
 
@@ -23,18 +30,15 @@ it is safe to remove. Nothing is deleted unless you answer `y`.
   much it would free. Deletes nothing.
 - **`-v` / `--verbose`:** the full report with per-collection descriptions and sizes.
 - **`-c` / `--clean`:** enables the deletion pass. Every collection **still asks
-  `y/N`** before it is removed, and the whole run is appended to `pi_clean.log`
-  beside the script (append mode, one `====` header per run).
+  `y/N`** before it is removed, and the run is appended to `pi_clean.log`.
 - **`-y` / `--yes`:** answer `y` to the gate and to every collection (used with `-c`).
 - **`-n` / `--dry-run`:** alias for the compact read-only report (nothing deleted).
 - **`--no-log`:** run `-c` without writing `pi_clean.log`.
 - **`-t` / `--total`:** print only the reclaimable bytes — one bare number.
 - **`-V` / `--version`, `-h` / `--help`:** show the version / this help.
 
-Run with `sudo` to include the root-only (system-wide) sections; without it, those are
+Run with `sudo` to include the root-only (system) sections; without it, those are
 reported as *skipped — needs root* rather than erroring.
-
----
 
 ## What it cleans
 
@@ -63,24 +67,28 @@ reported as *skipped — needs root* rather than erroring.
 | Rotated log files | `*.gz`, `*.1`, `*.old` in `/var/log` |
 | Stale temp files | unmodified 7+ days in `/tmp` and `/var/tmp` |
 
-**Report only (never removes):** at the end it also lists apps that are installed
-redundantly (e.g. two browsers, two archive managers) so you can prune them by hand.
-pi_clean never uninstalls applications — that report is informational.
-
----
+**Report only (never removes):** at the end it also lists apps installed redundantly
+(e.g. two browsers, two archive managers) so you can prune them by hand. pi_clean never
+uninstalls applications — that listing is informational.
 
 ## Usage
 
 ```bash
-pi_clean.sh                 # read-only report (nothing deleted)
-pi_clean.sh -v              # full per-collection report
-pi_clean.sh -c              # enable the deletion pass (still asks y/N per item)
-sudo pi_clean.sh -c         # include the root-only (system) sections
-pi_clean.sh -c -y           # clean and auto-answer yes to everything
-sudo pi_clean.sh -t         # print only reclaimable bytes (one number)
-pi_clean.sh -V              # show the version and exit
-pi_clean.sh -h              # help
+pi_clean.sh                     compact read-only report (this box)
+pi_clean.sh -v                  full report with per-collection detail
+pi_clean.sh -c                  deletion pass (per-item y/N still applies)
+sudo pi_clean.sh -c             include the root-only (system) sections
+pi_clean.sh -c -y               clean, auto-answering yes to everything
+sudo pi_clean.sh -t             print one bare number: reclaimable bytes
+pi_clean.sh /media/pi/rootfs    a directory target (already mounted)
+pi_clean.sh /dev/sda            a block device — rootfs partition found, mounted rw, umounted on exit
+pi_clean.sh image.img.xz        an image — plain/.xz/.zstd/zip; compressed extracted first,
+                                attached as a loop device, detached on exit
+pi_clean.sh -V                  show the version and exit
+pi_clean.sh -h                  show the help
 ```
+
+Target is a plain positional argument — zero or one, order-free with flags.
 
 ### Working on another system (DIR / DEV / IMG)
 
@@ -93,12 +101,6 @@ Pass a single plain argument to scan a different root instead of this machine:
   (compressed ones are extracted first; the extract is cleaned up on exit). Attached as a
   loop device, scanned, and detached on exit. Needs root.
 
-```bash
-sudo pi_clean.sh -v /media/pi/rootfs
-sudo pi_clean.sh -c /dev/sdb
-sudo pi_clean.sh -v raspbian-2026-01-01.img.xz
-```
-
 ### Install to PATH (optional)
 
 pi_clean is a single self-contained script. To invoke it as `pi_clean`:
@@ -107,8 +109,6 @@ pi_clean is a single self-contained script. To invoke it as `pi_clean`:
 sudo cp pi_clean.sh /usr/local/bin/pi_clean && sudo chmod +x /usr/local/bin/pi_clean
 ```
 
----
-
 ## Logging
 
 A `-c` run appends a full transcript to `pi_clean.log` in the same directory as the
@@ -116,32 +116,10 @@ script (one `==== pi_clean <version> <timestamp> (user ...) args: ...` header pe
 The logging is deliberate: a destructive pass is not allowed to go unrecorded unless
 you opt out with `--no-log`. Report-only runs (default, `-t`) never log.
 
----
-
-## Testing
-
-The test harness lives in `testing/` and builds its own fixtures under
-`/tmp/pi_clean_test` (using lightweight shims for `apt-get`, `chroot`, `losetup`,
-`zstd`, `unzip`, and a fixture-based base root). Ten suites cover the main areas:
-
-```bash
-cd testing
-for t in test_*.sh; do  bash "$t"  ; done
-# or run a single suite, e.g.:
-bash test_kernels.sh
-```
-
-Suites: `test_cli_flags`, `test_base_sections`, `test_devmode`, `test_loopmode`,
-`test_imgxz`, `test_imgcomp`, `test_kernels`, `test_dupapps`, `test_apt_autoremove`,
-plus `live_regression.sh` (end-to-end) and `make_base_fix.sh` (fixture builder).
-`bash -n` runs clean on all of them.
-
----
-
 ## Development
 
-The program is a small library plus a `main()` that runs it, organised into numbered
-modules — self-contained, documented by signature, easy to jump to:
+The program is a small library plus a `main()` that runs it, organised into 12
+numbered modules — self-contained, documented by signature, easy to jump to:
 
 ```bash
 grep -nE '#   \[[0-9]+\]' pi_clean.sh
@@ -154,7 +132,61 @@ grep -nE '#   \[[0-9]+\]' pi_clean.sh
 The version string is `PI_CLEAN_VER` near the top of `pi_clean.sh` (currently
 **0.9.0**). It's a single-file script with no build step.
 
----
+## Testing (agent-safe)
+
+```
+cd testing && for s in test_imgcomp.sh test_imgxz.sh test_loopmode.sh \
+    test_devmode.sh test_base_sections.sh test_kernels.sh test_dupapps.sh \
+    live_regression.sh test_apt_autoremove.sh test_cli_flags.sh; do bash "$s"; done
+```
+
+* Scratch lives in `/tmp/pi_clean_test`; the shared rootfs fixture
+  (`base_fix/`) is **auto-built** by `make_base_fix.sh` when missing.
+* Suites are location-independent: `pi_clean.sh` is resolved relative to
+  the suite's own directory; the apt suites need passwordless `sudo`.
+* **Extract-then-source harnesses** key their `awk` anchors on the
+  `[11] MAIN` banner (and `DUPAPP_CATS=(` for dupapps) — re-anchor there if
+  module structure ever changes, not on dividers.
+* Assertions on exact totals: apt fixture `-t` = **5774336** bytes;
+  xz/zst fixtures = **2097162**; live box `-t` = whatever this box holds
+  (~475 MB class on the reference Pi).
+
+## Project state (for maintainers — do not "improve" these)
+
+### Steady state
+
+* **shellcheck** = only 3 documented-correct families: SC2317 (trap callee
+  `base_release`), SC1083 (`{LOGTEE[1]}` in the trap), SC2231 (flatpak glob).
+* The `-c` log path is a coproc `tee -a`; the EXIT-trap close sequence is
+  order-fragile on bash 5.2 — **do not reorder or "clean up" it**.
+* `is_browser_cache()`: the `*chrom*` case subsumes chrome/chromium —
+  don't re-add a `*chrome*` pattern.
+* `bash -n` before and after any edit; `/tmp` leak delta must stay 0
+  (8G tmpfs, a filled scratch dir = false failures).
+
+### Decisions locked (as of 2026-10-29)
+
+* **Name is `pi_clean` for now** (`linux_clean` was considered and set
+  aside); nothing Pi-specific is required of the box.
+* `-v` = verbose, `-V`/`--version` = version (`pi_clean 0.9.0`).
+* `--base` was **removed** 2026-10-29 in favor of the positional target.
+  A one-time **migration hint** still recognizes `--base` (prints the new
+  form, exits 2) — drop it in a later release if it has served its cycle.
+* Report mode prints the title line **first**, before any mount/scan delay;
+  extraction of compressed images announces start + done **on stderr only**.
+* Honest sizes; everything deletable sits behind a `y/N` gate.
+
+### Open / user's calls
+
+* `pi_clean_log.txt` (beside this file) — a captured real run from an
+  earlier version, moved into the folder by an outside client; on disk,
+  gitignored, **awaiting a delete-or-keep call**.
+* Real-box verification still owed by the user: `sudo -c` on a real rootfs,
+  `-c -y`, a real `apt autoremove` run, and an unwritable-log refusal.
+* Optional, declined twice so far: split `[5] TARGET SETUP` into named
+  helpers — ask before doing it.
+* **No remote is configured and nothing has been pushed; local `main` is
+  the only branch.** Pushing/tagging a remote is a separate explicit call.
 
 ## License
 
