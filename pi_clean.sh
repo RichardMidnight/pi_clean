@@ -9,6 +9,10 @@
 #   -c, --clean    enable the deletion pass (each collection still
 #                  asks y/N before it is removed; logged to
 #                  pi_clean.log next to the script unless --no-log)
+#                  WARNING — destructive: -c DELETES files and uninstalls
+#                  packages. Back up the card first (e.g. PiSafe /
+#                  Raspberry Pi Imager); pi_clean is provided as-is and the
+#                  authors are not responsible for data loss or damage
 #   -y, --yes      answer y to every question (gate + all collections);
 #                  meaningful with -c
 #   -n, --dry-run  same as no flags (kept as an explicit alias)
@@ -87,6 +91,13 @@ usage() {
     printf 'every collection still asks y/N before it is removed. A -c run is logged\n'
     printf 'to pi_clean.log next to this script (append mode); --no-log skips that.\n'
     printf '%s\n\n' '-y answers yes to the gate and to every collection.'
+    printf 'WARNING — destructive when used with -c:\n'
+    printf '  pi_clean DELETES files and uninstalls packages the moment you answer y;\n'
+    printf '  some of it is irreversible (emptied trash, duplicates, apt autoremove).\n'
+    printf '  1) the default is a read-only report — -c is what turns deletion on;\n'
+    printf '  2) back the card up FIRST (e.g. PiSafe / Raspberry Pi Imager);\n'
+    printf '  3) pi_clean is provided as-is, without warranty — we are not responsible\n'
+    printf '     for data loss or damage; you are responsible for what you delete.\n\n'
     printf 'Usage: pi_clean.sh [options] [TARGET]\n'
     printf '   (no arguments) compact read-only report (nothing deleted)\n'
     printf '   -v, --verbose  full report: per-collection descriptions and sizes\n'
@@ -1347,6 +1358,25 @@ if (( DRY )); then
     printf '(dry run — nothing will be deleted'
     (( CLEAN )) || printf '; add -c to the command to enable the deletion pass'
     printf ')\n'
+fi
+
+# Destructive-pass warning: the last full stop before any y. Printed to stdout so
+# it is captured in the -c transcript. Only the real deletion set gets it (report
+# mode, -n, and -t are deliberately left free of it).
+if (( CLEAN )) && (( ! DRY )); then
+    printf '%s\n' \
+        '==================================================================' \
+        'WARNING — this pass is DESTRUCTIVE' \
+        '' \
+        '  * pi_clean DELETES files and uninstalls packages the moment you answer y.' \
+        '    Some of it is irreversible: emptied trash, deleted duplicate files,' \
+        '    and apt autoremove removes whole packages (not just files).' \
+        '  * Make a backup / image FIRST (e.g. PiSafe or Raspberry Pi Imager).' \
+        '    Anything not backed up may not come back.' \
+        '  * pi_clean is provided as-is, without warranty of any kind. The authors' \
+        '    are NOT responsible for data loss or damage; you are responsible for' \
+        '    everything you delete.' \
+        '=================================================================='
 fi
 
 if (( QUIET || DRY )); then

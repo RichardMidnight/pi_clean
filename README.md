@@ -13,6 +13,31 @@ prompt before anything is deleted.
   destructive run with no log unless `--no-log` is given)
 - 📦 Works on **this machine, a mounted root, or an image / SD card** without booting it
 
+## ⚠️ Read this before you run — it is destructive
+
+pi_clean, when run with `-c`, **deletes files and uninstalls packages**. Every
+collection still asks `y/N`, but the moment you answer `y` the deletion happens — and
+some of it is **irreversible**:
+
+- **emptying the trash** is permanent;
+- **deleting duplicate files** removes the extra copies for good;
+- **`apt autoremove`** removes whole packages, not just files;
+- **old kernel artifacts, flatpak runtimes, core dumps** are gone once approved.
+
+**Do this before the `-c` pass:**
+
+1. The default (no flags) is a **read-only report** — it deletes nothing. `-c` is what
+   turns deletion on; `-c -y` then answers yes to everything at once.
+2. **Back up the card first** (e.g. **PiSafe** or **Raspberry Pi Imager**, or any
+   image/snapshot tool you trust). Anything you have not backed up may not come back.
+
+### Disclaimer
+
+pi_clean is provided **"as is", without warranty of any kind**, express or implied.
+Use it at your own risk. **The authors and maintainers are not responsible for data
+loss or damage** of any kind. You are responsible for the files, packages, and systems
+you point it at, and for every deletion you approve.
+
 ## Layout
 
 | Path | Purpose |
@@ -175,6 +200,10 @@ cd testing && for s in test_imgcomp.sh test_imgxz.sh test_loopmode.sh \
 * Report mode prints the title line **first**, before any mount/scan delay;
   extraction of compressed images announces start + done **on stderr only**.
 * Honest sizes; everything deletable sits behind a `y/N` gate.
+* **Destructive / back-up / not-responsible warnings** (added before the first push):
+  full "Read this before you run" + Disclaimer section in this README; a `WARNING`
+  block in the `-h` help; a destructive banner in the `-c` runbook's pre-gate banner;
+  and a note in the `pi_clean.sh` header. `bash -n` clean; shellcheck steady-state kept.
 
 ### Open / user's calls
 
