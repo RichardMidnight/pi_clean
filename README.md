@@ -1,5 +1,9 @@
 # pi_clean — reclaim space on a Raspberry Pi (and any Linux box)
 
+pi_clean.sh is a handy companion to **PiSafe**: PiSafe takes the backup you
+should have before a deletion pass, and pi_clean shows you what you can
+safely reclaim — on the running box, or inside the image you saved.
+
 One file, no dependencies: a report-first junk cleaner for **this machine, a
 mounted root, a block device, or a rootfs image** (plain / `.xz` / `.zst` /
 `.zip` — no booting needed). It walks the well-known junk spots and offers
@@ -65,8 +69,6 @@ Then run it:
 sudo bash pi_clean.sh         # from the folder you saved it in
 ```
 
-(no `chmod`, no `./`, no install needed — `bash` runs the script straight
-from there.)
 
 — advanced users: install it on the `PATH` as `pi_clean` to drop the prefix:
 
@@ -83,16 +85,16 @@ for the system sections and for `DEV`/`IMG` targets.
 ## Quick start
 
 ```bash
-pi_clean.sh                 compact read-only report of this box — deletes nothing
-pi_clean.sh -v              full report: per-collection descriptions and sizes
-sudo pi_clean.sh -c         deletion pass (per-item y/N still applies; logged)
-pi_clean.sh -t              one bare number: reclaimable bytes
+sudo bash pi_clean.sh                 compact read-only report of this box — deletes nothing
+sudo bash pi_clean.sh -v              full report: per-collection descriptions and sizes
+sudo bash pi_clean.sh -c              deletion pass (per-item y/N still applies; logged)
+sudo bash pi_clean.sh -t              one bare number: reclaimable bytes
 
-pi_clean.sh /media/pi/rootfs      DIR — an already-mounted system root
-pi_clean.sh /dev/sda              DEV — rootfs partition found, mounted rw, umounted on exit (sudo)
-pi_clean.sh image.img.xz          IMG — compressed rootfs image (see below; sudo)
+sudo bash pi_clean.sh /media/pi/rootfs  DIR — an already-mounted system root
+sudo bash pi_clean.sh /dev/sda          DEV — find + mount the rootfs partition (umounted on exit)
+sudo bash pi_clean.sh image.img.xz      IMG — compressed rootfs image (report only)
 
-sudo pi_clean.sh -m image.img.xz  extract in an own RAM disk when nothing existing fits
+sudo bash pi_clean.sh -m image.img.xz   extract in an own RAM disk when nothing existing fits
 ```
 
 Run with `sudo` to include the root-only (system) sections; without it,
