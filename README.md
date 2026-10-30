@@ -78,10 +78,11 @@ for the system sections and for `DEV`/`IMG` targets.
 ## Quick start
 
 ```bash
-sudo bash pi_clean.sh                 compact read-only report of this box — deletes nothing
-sudo bash pi_clean.sh -V              full report: per-collection descriptions and sizes
-sudo bash pi_clean.sh -c              deletion pass (per-item y/N still applies; logged)
-sudo bash pi_clean.sh -t              one bare number: reclaimable bytes
+sudo bash pi_clean.sh                 read-only report of this box — deletes nothing
+sudo bash pi_clean.sh -c              clean: deletion pass (per-item y/N still applies; logged)
+sudo bash pi_clean.sh -V              verbal: per-collection descriptions and sizes
+
+sudo bash pi_clean.sh -t              total: one bare number: reclaimable bytes
 
 sudo bash pi_clean.sh /media/pi/rootfs  DIR — an already-mounted system root
 sudo bash pi_clean.sh /dev/sda          DEV — find + mount the rootfs partition (umounted on exit)
@@ -122,9 +123,8 @@ pi_clean does not rewrite images.
 
 | Path | What |
 |---|---|
-| `pi_clean.sh` | The entire product (~1,565 lines) in 12 numbered modules — jump to them with `grep -nE '#   \[[0-9]+\]' pi_clean.sh` |
+| `pi_clean.sh` | The entire product (~1,644 lines) in 12 numbered modules — jump to them with `grep -nE '#   \[[0-9]+\]' pi_clean.sh` |
 | [`USAGE.md`](USAGE.md) | Full flag reference, logging rules, how the suites work, and maintainer notes |
-| `testing/` | 11 agent-safe suites: shimmed `apt`/`losetup`/`mount`, auto-built fixture |
 | `LICENSE` | GNU GPL v3 |
 
 ## License
