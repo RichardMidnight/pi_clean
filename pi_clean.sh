@@ -105,6 +105,14 @@ usage() {
     printf '   -y, --yes    answer y to every question (gate + all collections)\n'
     printf '   -n, --dry-run  alias for the compact report (nothing deleted)\n'
     printf '   --no-log     run -c without writing pi_clean.log next to the script\n'
+    printf '   -m, --maxramdrive\n'
+    printf '                   when extracting a compressed image and no\n'
+    printf '                   existing RAM disk is big enough, allow pi_clean\n'
+    printf '                   to mount its own one: sized to what the image\n'
+    printf '                   needs plus a small buffer, and only when the\n'
+    printf '                   system has that much RAM to spare — otherwise\n'
+    printf '                   the disk. Mounted just for this run, unmounted\n'
+    printf '                   on exit. Needs root.\n'
     printf '   -t, --total  print only reclaimable bytes (one line)\n'
     printf '   -V, --version  show the pi_clean version and exit\n'
     printf '   -h, --help   show this help and exit\n'
@@ -127,7 +135,7 @@ usage() {
     printf 'At the end it also lists apps installed redundantly (report only).\n'
 }
 
-PI_CLEAN_VER="0.9.0"
+PI_CLEAN_VER="0.9.1"
 
 DRY=0
 QUIET=0
@@ -136,6 +144,7 @@ TOTAL=0
 CLEAN=0
 YES=0
 NOLOG=0
+MAXRAM=0       # --maxramdrive: allow an own, auto-sized RAM disk for extraction
 BASE=""
 ORIGARGS="$*"   # captured before the option loop consumes $*
 
@@ -149,6 +158,16 @@ while (( $# > 0 )); do
         -t|--total)   TOTAL=1 ;;
         -V|--version) printf 'pi_clean %s\n' "$PI_CLEAN_VER"; exit 0 ;;
         -h|--help)    usage; exit 0 ;;
+        -m|--maxramdrive|-maxramdrive)
+            # no size argument — pi_clean sizes its own RAM disk itself
+            # (what the image needs + a little, if the system can afford it).
+            # Old sized invocations should get a hint, not a stray positional
+            if [[ $# -ge 2 && $2 =~ ^([0-9]+(\.[0-9]+)?)([KkMmGgTt])?([Bb])?([Ii])?([Bb])?$ ]]; then
+                printf 'pi_clean: %s no longer takes a size argument — it sizes itself (what the image needs + a small buffer, only when the system can spare that much RAM).\n' "$1" >&2
+                printf '           Drop the size argument: pi_clean TARGET -m\n' >&2
+                exit 2
+            fi
+            MAXRAM=1 ;;
         --base)
             # removed — the target is now a plain argument; point old
             # invocations at the new form
@@ -195,6 +214,7 @@ BASE_LOOP=""  # loop device attached when the target was an image file
 BASE_SRC=""   # the image file the target was given as, if any
 BASE_EXTRACT=""  # temp file holding a compressed image's raw extract (deleted on exit)
 BASE_MP=""    # that mount point (unmounted again on exit)
+RAMTMP=""     # --maxramdrive: our own tmpfs mount point (unmounted on exit)
 base_release() {
     if [[ -n $BASE_MP ]]; then
         umount "$BASE_MP" 2>/dev/null
@@ -205,6 +225,11 @@ base_release() {
     fi
     if [[ -n $BASE_EXTRACT ]]; then
         rm -f -- "$BASE_EXTRACT"
+    fi
+    # last: the extract file (when on it) is gone by now, so it can umount
+    if [[ -n $RAMTMP ]]; then
+        umount "$RAMTMP" 2>/dev/null
+        rmdir "$RAMTMP" 2>/dev/null
     fi
 }
 trap base_release EXIT
@@ -337,12 +362,18 @@ if [[ -n $BASE ]]; then
             (( usize > 0 && usize < fsize * 100000 )) || usize=0
 
             # where to extract: a RAM disk (tmpfs) first, when the size
-            # fits — it's faster and keeps the SD card out of it.  Otherwise
-            # the usual temp locations (the image's own dir first)
+            # fits — it's faster and keeps the SD card out of it.  The
+            # system's existing tmpfs are used as-is (their size was set
+            # at boot — typically 50% of RAM); -m/--maxramdrive
+            # additionally allows mounting our own one, sized to what this
+            # image needs (plus a little), and only when the system has
+            # that much RAM to spare — for this run only, unmounted on
+            # exit.  Otherwise the usual temp locations (the image's own
+            # dir first)
             exdir=""
             if (( usize > 0 )); then
                 need=$(( usize + usize / 10 ))     # sizes can be rounded
-                best=0; bestmp=""
+                best=0; bestmp=""; ramown=0
                 while read -r _ rmp fstype _; do
                     [[ $fstype == tmpfs ]] || continue
                     [[ -d $rmp && -w $rmp ]] || continue
@@ -351,10 +382,44 @@ if [[ -n $BASE ]]; then
                     fkb=$(( fkb * 1024 ))
                     (( fkb >= need && fkb > best )) && { best=$fkb; bestmp=$rmp; }
                 done < /proc/mounts
+                if [[ -z $bestmp ]] && (( MAXRAM )); then
+                    # no existing RAM disk that big, but -m was given:
+                    # size our own one to what the extract needs plus a
+                    # small buffer — and only if the system can actually
+                    # give it (MemAvailable: the kernel's own estimate of
+                    # what RAM can still be handed out without swapping).
+                    # base_release() unmounts and removes it on exit.
+                    # (tmpfs is lazy: size= is a ceiling, RAM is only used
+                    # as fast as the extract actually lands.)
+                    RAMSIZE=$(( (need + 8388607) / 1024 ))   # need + 8 MiB, in KiB
+                    memavail=$(awk '/^MemAvailable:/ { print $2 * 1024; exit }' /proc/meminfo 2>/dev/null)
+                    memavail=${memavail:-0}
+                    if (( memavail >= need )); then
+                        ramroot=$(mktemp -d "${TMPDIR:-/tmp}/pi_clean.ram.XXXXXX" 2>/dev/null) || ramroot=""
+                        if [[ -n $ramroot ]] \
+                           && mount -t tmpfs -o "size=${RAMSIZE}K,mode=700" tmpfs "$ramroot" 2>/dev/null; then
+                            RAMTMP=$ramroot; bestmp=$ramroot; ramown=1
+                        else
+                            rmdir -- "$ramroot" 2>/dev/null
+                            printf 'pi_clean: could not mount the RAM disk (not root? — try sudo); using disk\n' >&2
+                        fi
+                    else
+                        printf 'pi_clean: a RAM disk would need ~%s but the system only has ~%s to spare — using disk\n' \
+                            "$(numfmt --to=iec --suffix=B -- "$need" 2>/dev/null || printf '%s B' "$need")" \
+                            "$(numfmt --to=iec --suffix=B -- "$memavail" 2>/dev/null || printf '%s B' "$memavail")" >&2
+                    fi
+                fi
                 if [[ -n $bestmp ]]; then
                     exdir=$bestmp
-                    printf 'pi_clean: extracting to RAM: %s (needs about %s)\n' \
-                        "$exdir" "$(numfmt --to=iec --suffix=B -- "$usize" 2>/dev/null || printf '%s B' "$usize")" >&2
+                    if (( ramown )); then
+                        printf 'pi_clean: extracting to RAM (own mount, sized to ~%s): %s (needs about %s; system had ~%s to spare)\n' \
+                            "$(numfmt --to=iec --suffix=B -- $(( RAMSIZE * 1024 )) 2>/dev/null || printf '%s B' "$RAMSIZE")" \
+                            "$exdir" "$(numfmt --to=iec --suffix=B -- "$usize" 2>/dev/null || printf '%s B' "$usize")" \
+                            "$(numfmt --to=iec --suffix=B -- "$memavail" 2>/dev/null || printf '%s B' "$memavail")" >&2
+                    else
+                        printf 'pi_clean: extracting to RAM: %s (needs about %s)\n' \
+                            "$exdir" "$(numfmt --to=iec --suffix=B -- "$usize" 2>/dev/null || printf '%s B' "$usize")" >&2
+                    fi
                 fi
             fi
             if [[ -z $exdir ]]; then

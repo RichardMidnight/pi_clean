@@ -42,8 +42,8 @@ you point it at, and for every deletion you approve.
 
 | Path | Purpose |
 |---|---|
-| `pi_clean.sh` | The entire product (~1,470 lines). 12 numbered module banners — jump: `grep -nE '#   \[[0-9]+\]' pi_clean.sh` |
-| `testing/` | 10 suites, `shim_apt/` (fake chroot/apt-get), `make_base_fix.sh` (fixture builder) |
+| `pi_clean.sh` | The entire product (~1,565 lines). 12 numbered module banners — jump: `grep -nE '#   \[[0-9]+\]' pi_clean.sh` |
+| `testing/` | 11 suites, `shim_apt/` (fake chroot/apt-get), `make_base_fix.sh` (fixture builder) |
 | `LICENSE` | GNU GPL v3 |
 
 ## How it behaves
@@ -59,6 +59,13 @@ it is safe to remove. Nothing is deleted unless you answer `y`.
 - **`-y` / `--yes`:** answer `y` to the gate and to every collection (used with `-c`).
 - **`-n` / `--dry-run`:** alias for the compact read-only report (nothing deleted).
 - **`--no-log`:** run `-c` without writing `pi_clean.log`.
+- **`-m` / `--maxramdrive`:** allow pi_clean to mount its **own** RAM disk
+  when extracting a compressed image and no existing RAM disk is big enough:
+  pi_clean sizes it to what the image needs plus a small buffer, and only
+  when the system has that much RAM to spare (`MemAvailable`) — otherwise it
+  says so and uses the disk. The mount lives for this run only and is gone on
+  exit. Needs root. The old size-argument form (`-m 9G`) is refused with a
+  migration hint.
 - **`-t` / `--total`:** print only the reclaimable bytes — one bare number.
 - **`-V` / `--version`, `-h` / `--help`:** show the version / this help.
 
@@ -155,20 +162,32 @@ grep -nE '#   \[[0-9]+\]' pi_clean.sh
 ```
 
 The version string is `PI_CLEAN_VER` near the top of `pi_clean.sh` (currently
-**0.9.0**). It's a single-file script with no build step.
+**0.9.1**). It's a single-file script with no build step.
 
 ## Testing (agent-safe)
 
 ```
-cd testing && for s in test_imgcomp.sh test_imgxz.sh test_loopmode.sh \
-    test_devmode.sh test_base_sections.sh test_kernels.sh test_dupapps.sh \
-    live_regression.sh test_apt_autoremove.sh test_cli_flags.sh; do bash "$s"; done
+cd testing && for s in test_imgcomp.sh test_imgxz.sh test_maxram.sh \
+    test_loopmode.sh test_devmode.sh test_base_sections.sh test_kernels.sh \
+    test_dupapps.sh live_regression.sh test_apt_autoremove.sh test_cli_flags.sh; \
+do bash "$s"; done
 ```
 
 * Scratch lives in `/tmp/pi_clean_test`; the shared rootfs fixture
   (`base_fix/`) is **auto-built** by `make_base_fix.sh` when missing.
 * Suites are location-independent: `pi_clean.sh` is resolved relative to
   the suite's own directory; the apt suites need passwordless `sudo`.
+* `test_maxram.sh` also needs passwordless `sudo`: inside `unshare -m`
+  each inherited tmpfs is overlaid with a fresh small one (never a remount —
+  that would reconfigure the superblock *shared with the host*), so the
+  existing disks cannot hold the fixture.  Three phases: `nom` (no `-m` →
+  disk, no RAM note at all); `notafford` (`-m` but the image needs more than
+  `MemAvailable` can spare → refusal message, then disk); `own` (`-m` and
+  affordable → a real own tmpfs mount, whose `size=` option the suite samples
+  from `/proc/mounts` mid-run and asserts is ≈ need + 8 MiB).  After each
+  phase it asserts the host's tmpfs sizes are exactly as before.  Scratch +
+  shim live on real disk (`/var/tmp/pi_clean_test_maxram*`) because `/tmp`
+  is one of the points the namespace overlays.
 * **Extract-then-source harnesses** key their `awk` anchors on the
   `[11] MAIN` banner (and `DUPAPP_CATS=(` for dupapps) — re-anchor there if
   module structure ever changes, not on dividers.
@@ -188,18 +207,33 @@ cd testing && for s in test_imgcomp.sh test_imgxz.sh test_loopmode.sh \
   don't re-add a `*chrome*` pattern.
 * `bash -n` before and after any edit; `/tmp` leak delta must stay 0
   (8G tmpfs, a filled scratch dir = false failures).
+* **Never remount an inherited tmpfs inside a test namespace**: a remount
+  reconfigures the *superblock*, which is shared with the host, so the size
+  change leaks out of `unshare -m` (this actually shipped in a draft and
+  shrank the box's `/tmp` and `/dev/shm`).  Overlay a fresh small tmpfs over
+  the same point instead, and assert the host's sizes after the phase
+  (`hostok` in `test_maxram.sh` is that guard).
 
-### Decisions locked (as of 2026-10-29)
+### Decisions locked (as of 2026-10-30)
 
 * **Name is `pi_clean` for now** (`linux_clean` was considered and set
   aside); nothing Pi-specific is required of the box.
-* `-v` = verbose, `-V`/`--version` = version (`pi_clean 0.9.0`).
+* `-v` = verbose, `-V`/`--version` = version (`pi_clean 0.9.1`).
 * `--base` was **removed** 2026-10-29 in favor of the positional target.
   A one-time **migration hint** still recognizes `--base` (prints the new
   form, exits 2) — drop it in a later release if it has served its cycle.
 * Report mode prints the title line **first**, before any mount/scan delay;
   extraction of compressed images announces start + done **on stderr only**.
 * Honest sizes; everything deletable sits behind a `y/N` gate.
+* **`-m` / `--maxramdrive` (0.9.1) is an opt-in flag — it takes no size
+  argument**: the default stays locked — existing RAM disks first (set at
+  boot, typically 50% of RAM), then the disk.  The flag only *permits*
+  pi_clean to mount its own private tmpfs for a compressed-image extract when
+  none of the existing ones fit; pi_clean sizes it itself (what the image
+  needs + a small buffer) and only acts when `MemAvailable` can spare that
+  much — otherwise it says so and uses the disk.  The mount is gone on exit.
+  The old sized form (`-m 9G`) is refused with a one-time migration hint (the
+  `--base` precedent).
 * **Destructive / back-up / not-responsible warnings** (added before the first push):
   full "Read this before you run" + Disclaimer section in this README; a `WARNING`
   block in the `-h` help; a destructive banner in the `-c` runbook's pre-gate banner;
@@ -209,9 +243,17 @@ cd testing && for s in test_imgcomp.sh test_imgxz.sh test_loopmode.sh \
 
 * `pi_clean_log.txt` (beside this file) — a captured real run from an
   earlier version, moved into the folder by an outside client; on disk,
-  gitignored, **awaiting a delete-or-keep call**.
+  gitignored. **Resolved 2026-10-29: deleted** (user chose "Delete").
 * Real-box verification still owed by the user: `sudo -c` on a real rootfs,
   `-c -y`, a real `apt autoremove` run, and an unwritable-log refusal.
+* Live `-m` check on the real 7.9 GB Armbian image — **done 2026-10-30**
+  (new flag API):
+  `sudo bash pi_clean.sh -m /home/pi/Downloads/Armbian_26.8.1_Rpi4b_resolute_current_6.18.42_kde-plasma_desktop.img.xz`
+  announced "extracting to RAM (own mount, sized to ~8.7GB): …
+  (needs about 7.9GB; system had ~13GB to spare)"; a 2 s sampler showed
+  MemAvailable dip from ~12.8 GiB to ~6.0 GiB at peak (the ~7.9 GiB extract
+  in RAM) and back after exit. Full clean report, no residue
+  (no mounts, no temp files, no loop devices), box left as found.
 * Optional, declined twice so far: split `[5] TARGET SETUP` into named
   helpers — ask before doing it.
 * **No remote is configured and nothing has been pushed; local `main` is

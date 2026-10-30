@@ -126,10 +126,10 @@ echo
 echo "=== 7) -V / --version: exact line, rc=0, no logging ==="
 hdrs_before=$(grep -c '^==== pi_clean' "$LOGF" 2>/dev/null); hdrs_before=${hdrs_before:-0}
 v1=$(run --version); rc=$?
-[[ $rc == 0 && $v1 == "pi_clean 0.9.0" ]] && pass "--version: exact 'pi_clean 0.9.0'" \
+[[ $rc == 0 && $v1 == "pi_clean 0.9.1" ]] && pass "--version: exact 'pi_clean 0.9.1'" \
     || fail "--version: rc=$rc got <$v1>"
 v2=$(run -V); rc=$?
-[[ $rc == 0 && $v2 == "pi_clean 0.9.0" ]] && pass "-V: exact 'pi_clean 0.9.0'" \
+[[ $rc == 0 && $v2 == "pi_clean 0.9.1" ]] && pass "-V: exact 'pi_clean 0.9.1'" \
     || fail "-V: rc=$rc got <$v2>"
 [[ $(grep -c '^==== pi_clean' "$LOGF") -eq $hdrs_before ]] \
     && pass "version: no log header appended" || fail "version: header appended"
