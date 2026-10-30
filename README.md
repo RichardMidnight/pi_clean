@@ -40,14 +40,16 @@ deletion happens — and some of it is **irreversible**:
 
 pi_clean is provided **"as is", without warranty of any kind**, express or
 implied. Use it at your own risk. **The authors and maintainers are not
-responsible for data loss or damage** of any kind. You are responsible for
-the files, packages, and systems you point it at, and for every deletion you
-approve.
+responsible for data loss or damage** of any kind.
+
+You are responsible for having a backup, for the files, packages, and
+systems you point it at, and for every deletion you approve.
 
 ## Install
 
 pi_clean is a **single self-contained script — nothing to build, no packages
-to install**. Grab it straight from this repository:
+to install**. Download it into the folder you want it in (your Downloads
+folder is fine) — straight from this repository:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/RichardMidnight/pi_clean/main/pi_clean.sh -o pi_clean.sh
@@ -60,7 +62,7 @@ in a browser and download it instead.)
 Then either run it in place:
 
 ```bash
-bash pi_clean.sh            # from that folder
+sudo bash pi_clean.sh         # from that folder
 ```
 
 — or install it on the `PATH` as `pi_clean`:
