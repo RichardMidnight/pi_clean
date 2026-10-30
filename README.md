@@ -59,13 +59,16 @@ curl -fsSL https://raw.githubusercontent.com/RichardMidnight/pi_clean/main/pi_cl
 [pi_clean.sh](https://github.com/RichardMidnight/pi_clean/blob/main/pi_clean.sh)
 in a browser and download it instead.)
 
-Then either run it in place:
+Then run it:
 
 ```bash
-sudo bash pi_clean.sh         # from that folder
+sudo bash pi_clean.sh         # from the folder you saved it in
 ```
 
-— or install it on the `PATH` as `pi_clean`:
+(no `chmod`, no `./`, no install needed — `bash` runs the script straight
+from there.)
+
+— advanced users: install it on the `PATH` as `pi_clean` to drop the prefix:
 
 ```bash
 sudo cp pi_clean.sh /usr/local/bin/pi_clean && sudo chmod +x /usr/local/bin/pi_clean
