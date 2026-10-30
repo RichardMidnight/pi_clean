@@ -126,3 +126,24 @@ noextracts
 grep -q '^losetup -d /dev/loop0$' "$LOG" && echo "PASS: loop detached on exit" || { echo "FAIL: no detach:"; cat "$LOG"; }
 left=$(ls -d /run/pi_clean.* /tmp/pi_clean.* 2>/dev/null)
 [[ -z $left ]] && echo "PASS: no leftover mount points" || { echo "shim leftovers (expected): $left"; rm -rf $left; }
+
+echo K=clean-refused-for-compressed
+cs0=$(cksum "$D/image.zst"); csz=$(cksum "$D/image.zip")
+out=$(PATH="$SHIM:$PATH" bash "$P" "$D/image.zst" -c 2>&1); rc=$?
+[[ $rc == 2 && $out == *"-c is not available"*"compressed images"* ]] \
+    && echo "PASS (rc=$rc): -c on a .zst is refused (exit 2)" \
+    || { echo "FAIL (rc=$rc): -c .zst"; printf '%s\n' "$out" | head -8; }
+[[ $out == *"stay untouched"* && $out == *"Run it without -c"* ]] \
+    && echo "PASS: the refusal explains why (throwaway extract; see the report without -c)" \
+    || echo "FAIL: refusal message incomplete: ${out:0:200}"
+noextracts
+out=$(PATH="$SHIM:$PATH" bash "$P" "$D/image.zst" -c -y 2>&1); rc=$?
+[[ $rc == 2 ]] && echo "PASS (rc=$rc): -c -y on a .zst is still refused" || echo "FAIL: -c -y .zst rc=$rc"
+[[ $(cksum "$D/image.zst") == "$cs0" && $(cksum "$D/image.zip") == "$csz" ]] \
+    && echo "PASS: the archives are byte-identical after the -c attempts" \
+    || echo "FAIL: archives mutated by the refused -c"
+out=$(PATH="$SHIM:$PATH" bash "$P" "$D/image.zip" -c 2>&1); rc=$?
+[[ $rc == 2 && $out == *"-c is not available"*"compressed images"* ]] \
+    && echo "PASS (rc=$rc): -c on a .zip is refused (exit 2)" \
+    || { echo "FAIL (rc=$rc): -c .zip"; printf '%s\n' "$out" | head -8; }
+noextracts

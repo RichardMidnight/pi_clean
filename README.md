@@ -56,6 +56,12 @@ it is safe to remove. Nothing is deleted unless you answer `y`.
 - **`-v` / `--verbose`:** the full report with per-collection descriptions and sizes.
 - **`-c` / `--clean`:** enables the deletion pass. Every collection **still asks
   `y/N`** before it is removed, and the run is appended to `pi_clean.log`.
+  For **compressed images** (`*.xz`, `*.zst`, `*.zip`) it is refused (exit 2):
+  the deletion pass would only reach pi_clean's throwaway extract, and the
+  archive would stay byte-identical. The report (no `-c`) is the whole job for
+  those — it tells you what could be freed inside; cleaning a compressed image
+  for real is a separate decompress → clean → (shrink) → recompress workflow,
+  with the image backed up first. pi_clean does not rewrite images.
 - **`-y` / `--yes`:** answer `y` to the gate and to every collection (used with `-c`).
 - **`-n` / `--dry-run`:** alias for the compact read-only report (nothing deleted).
 - **`--no-log`:** run `-c` without writing `pi_clean.log`.

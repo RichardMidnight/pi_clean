@@ -93,3 +93,12 @@ grep -q '^losetup -d /dev/loop0$' "$LOG" && echo "PASS: loop detached on exit" |
 left=$(ls -d /run/pi_clean.* /tmp/pi_clean.* 2>/dev/null)
 if [[ -z $left ]]; then echo "PASS: no leftover mount points"
 else echo "shim leftovers (expected): $left" | tr '\n' ' '; echo; rm -rf $left; fi
+
+echo F=clean-refused-for-compressed
+t "-c on a .img.xz is refused (exit 2)" 2 bash "$P" "$D/image.img.xz" -c
+out=$(PATH="$SHIM:$PATH" bash "$P" "$D/image.img.xz" -c -y 2>&1); rc=$?
+if [[ $rc == 2 && $out == *"-c is not available"*"compressed images"* \
+      && $out == *"stay untouched"* && $out == *"Run it without -c"* ]]; then
+    echo "PASS: the refusal explains why (throwaway extract; see the report without -c)"
+else echo "FAIL (rc=$rc): refusal message"; printf '%s\n' "$out" | head -8; fi
+noextracts

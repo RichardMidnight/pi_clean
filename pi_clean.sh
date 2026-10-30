@@ -102,6 +102,9 @@ usage() {
     printf '   (no arguments) compact read-only report (nothing deleted)\n'
     printf '   -v, --verbose  full report: per-collection descriptions and sizes\n'
     printf '   -c, --clean  enable the deletion pass (per-item y/N still applies)\n'
+    printf '                   not available for compressed images — those are\n'
+    printf '                   report-only: a clean pass would only reach a throwaway\n'
+    printf '                   extract. Run without -c to see what could be freed\n'
     printf '   -y, --yes    answer y to every question (gate + all collections)\n'
     printf '   -n, --dry-run  alias for the compact report (nothing deleted)\n'
     printf '   --no-log     run -c without writing pi_clean.log next to the script\n'
@@ -198,6 +201,42 @@ if (( ! CLEAN )); then
     DRY=1
     if (( ! VERBOSE && ! TOTAL )); then
         QUIET=1
+    fi
+fi
+
+# -c on a compressed image: refuse up front — before the -c log wiring in
+# section [3] (which re-routes all output into the transcript) so the
+# refusal still reaches the terminal, the same place the other refusals
+# (old -m size, --base) land.  A clean pass on an archive could only reach
+# pi_clean's own throwaway extract — deleted on exit — and the archive
+# would stay byte-identical: a success report for work that persists
+# nowhere.  Cleaning it for real is decompress -> clean -> (shrink) ->
+# recompress, with the image backed up first: a separate workflow pi_clean
+# does not do.  The report (no -c) is the whole job for compressed images.
+if (( CLEAN )) && [[ -f $BASE ]]; then
+    comp=""
+    case $BASE in
+        *.xz)         comp=xz ;;
+        *.zst|*.zstd) comp=zstd ;;
+        *.zip)        comp=zip ;;
+    esac
+    if [[ -z $comp ]]; then
+        magic=$(od -An -tx1 -N6 -- "$BASE" 2>/dev/null | tr -d ' \n')
+        case ${magic:-} in
+            fd377a585a00) comp=xz ;;
+            28b52ffd*)    comp=zstd ;;
+            504b0304*)   comp=zip ;;
+        esac
+    fi
+    if [[ -n $comp ]]; then
+        printf 'pi_clean: -c is not available for %s-compressed images:\n' "$comp" >&2
+        printf '           the clean pass would only touch a throwaway extract that is\n' >&2
+        printf '           deleted on exit, so %s would stay untouched.\n' "$BASE" >&2
+        printf '           Cleaning it for real is decompress -> clean -> (shrink) -> recompress:\n' >&2
+        printf '           a separate workflow, with the image backed up first.  pi_clean\n' >&2
+        printf '           does not rewrite images.\n' >&2
+        printf '           Run it without -c to see how much could be freed inside.\n' >&2
+        exit 2
     fi
 fi
 
@@ -317,6 +356,8 @@ if [[ -n $BASE ]]; then
             esac
         fi
         if [[ -n $comp ]]; then
+            # (-c on a compressed image is refused much earlier, before the
+            # -c log wiring — see the CLEAN gate above.)
             case $comp in
                 xz)   dcmd=( xz -dc -- "$BASE" );    cmdname=xz ;;
                 zstd) dcmd=( zstd -dc -- "$BASE" );  cmdname=zstd ;;
