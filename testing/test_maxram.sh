@@ -8,11 +8,13 @@
 # every inherited tmpfs gets a fresh small one mounted OVER the same point
 # (not a remount — a remount reconfigures the superblock shared with the
 # host and would change the host's sizes), so the existing disks cannot
-# hold the fixture.  Phases: nom = no -m (disk, no RAM note at all);
-# notafford = -m but the image exceeds what the system can spare
-# (message + disk); own = -m and affordable (a real own tmpfs mount, sized
-# ~= need + 8 MiB, measured).  After each phase the suite asserts the host's
-# tmpfs sizes are exactly as before.
+# hold the fixture.  Every phase also shows the sizes table (image + what
+# it needs / system RAM disk / custom RAM disk / max own RAM disk).
+# Phases: nom = no -m (disk; a hint says that with sudo and -m the extract
+# could have run in RAM); notafford = -m but the image exceeds what the
+# system can spare (message + disk); own = -m and affordable (a real own
+# tmpfs mount, sized ~= need + 8 MiB, measured).  After each phase the suite
+# asserts the host's tmpfs sizes are exactly as before.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 P=$(cd "$HERE/.." && pwd)/pi_clean.sh
@@ -107,7 +109,7 @@ ver=$(bash "$D/pi_clean.sh" -V)
 
 echo "=== 2) existing RAM disk still wins (host: big tmpfs present) ==="
 note=$(PATH="$SHIM:$PATH" bash "$D/pi_clean.sh" "$D/image.img.xz" -m -t 2>&1 >/dev/null)
-[[ $note == *"extracting to RAM:"* && $note != *"own mount"* ]] \
+[[ $note == *"extracting to RAM:"* && $note != *"extracting to RAM (own mount"* ]] \
     && pass "-m given but an existing tmpfs fits -> uses the existing one" \
     || fail "-m/existing precedence (note: $note)"
 cleanres
@@ -222,10 +224,19 @@ ns_run() {  # ns_run <want-rc> <desc> <mode: nom|notafford|own>
         echo "FAIL (rc=$rc want=$want): $desc"; printf '%s\n' "$NS_STDERR" | head -8; return 1; fi
 }
 
-echo "--- 3a) no -m: nothing fits any RAM disk -> disk fallback"
+echo "--- 3a) no -m: nothing fits any RAM disk -> disk fallback (plus the hint)"
 ns_run 0 "no -m: extract goes to the real disk, never an own mount" nom
-[[ $NS_STDERR != *"extracting to RAM"* ]] && pass "no -m: no RAM-disk note at all" \
+[[ $NS_STDERR != *"extracting to RAM"* ]] && pass "no -m: no actual RAM extract" \
     || fail "no -m: unexpected RAM note (got: $NS_STDERR)"
+[[ $NS_STDERR == *"no RAM disk here is big enough"* && $NS_STDERR == *"to spare"* \
+   && $NS_STDERR == *"with sudo and -m"* && $NS_STDERR == *"sudo pi_clean"* ]] \
+    && pass "no -m: hint that with sudo and -m the extract could run in RAM" \
+    || fail "no -m: missing the hint (got: $NS_STDERR)"
+[[ $NS_STDERR == *"sizes for this extract"* && $NS_STDERR == *"(needs "* \
+   && $NS_STDERR == *"system RAM disk:"* && $NS_STDERR == *"custom RAM disk:"* \
+   && $NS_STDERR == *"max own RAM disk:"* ]] \
+    && pass "no -m: the sizes table (image + needs / system / custom / max) is shown" \
+    || fail "no -m: missing the sizes table (got: $NS_STDERR)"
 cleanres
 hostok
 
@@ -235,6 +246,10 @@ ns_run 0 "-m + not affordable: refused for the extract, disk used" notafford
    && $NS_STDERR == *"using disk"* ]] \
     && pass "notafford: the refusal message (need, spare, disk) is said" \
     || fail "notafford: missing the refusal message (got: $NS_STDERR)"
+[[ $NS_STDERR == *"sizes for this extract"* && $NS_STDERR == *"system RAM disk:"* \
+   && $NS_STDERR == *"custom RAM disk:"* && $NS_STDERR == *"max own RAM disk:"* ]] \
+    && pass "notafford: the sizes table is shown too" \
+    || fail "notafford: missing the sizes table (got: $NS_STDERR)"
 cleanres
 hostok
 
@@ -243,6 +258,10 @@ ns_run 0 "-m affordable: extract lands on an own, real tmpfs mount" own
 [[ $NS_STDERR == *"extracting to RAM (own mount, sized to"* ]] \
     && pass "own: the own-mount extract is announced on stderr" \
     || fail "own: missing the own-mount note (got: $NS_STDERR)"
+[[ $NS_STDERR == *"sizes for this extract"* && $NS_STDERR == *"system RAM disk:"* \
+   && $NS_STDERR == *"custom RAM disk:"* && $NS_STDERR == *"max own RAM disk:"* ]] \
+    && pass "own: the sizes table is shown too" \
+    || fail "own: missing the sizes table (got: $NS_STDERR)"
 [[ $NS_STDERR == *"auto size OK"* ]] \
     && pass "own: the mounted size ~= need + 8 MiB (measured via /proc/mounts)" \
     || fail "own: auto size not OK (got: $NS_STDERR)"

@@ -373,7 +373,7 @@ if [[ -n $BASE ]]; then
             exdir=""
             if (( usize > 0 )); then
                 need=$(( usize + usize / 10 ))     # sizes can be rounded
-                best=0; bestmp=""; ramown=0
+                best=0; bestmp=""; any=0; anymp=""; ramown=0
                 while read -r _ rmp fstype _; do
                     [[ $fstype == tmpfs ]] || continue
                     [[ -d $rmp && -w $rmp ]] || continue
@@ -381,7 +381,37 @@ if [[ -n $BASE ]]; then
                     [[ $fkb =~ ^[0-9]+$ ]] || continue
                     fkb=$(( fkb * 1024 ))
                     (( fkb >= need && fkb > best )) && { best=$fkb; bestmp=$rmp; }
+                    (( fkb > any )) && { any=$fkb; anymp=$rmp; }
                 done < /proc/mounts
+                RAMSIZE=$(( (need + 8388607) / 1024 ))   # need + 8 MiB, in KiB
+                # MemAvailable: the RAM the system can spare right now.  It
+                # bounds the gate (memavail >= need) — so an own mount can
+                # never be bigger than the system can afford — and the
+                # table shows it as the max own RAM disk.
+                memavail=$(awk '/^MemAvailable:/ { print $2 * 1024; exit }' /proc/meminfo 2>/dev/null)
+                memavail=${memavail:-0}
+                # the sizes at a glance — shown on every compressed-image run,
+                # before any decision message: the image itself (what it
+                # expands to and what that needs), the best of the system's
+                # existing RAM disks, what pi_clean would mount on its own
+                # with -m, and how big that could ever be.
+                if [[ -n $bestmp ]]; then
+                    sysram="$(numfmt --to=iec --suffix=B -- "$best" 2>/dev/null || printf '%s B' "$best") free at $bestmp (fits)"
+                elif (( any > 0 )); then
+                    sysram="$(numfmt --to=iec --suffix=B -- "$any" 2>/dev/null || printf '%s B' "$any") free at $anymp (not big enough for this extract)"
+                else
+                    sysram="none found on this system"
+                fi
+                printf 'pi_clean: sizes for this extract:\n' >&2
+                printf '           image: %s (%s) -> expands to %s (needs %s)\n' \
+                    "$(numfmt --to=iec --suffix=B -- "$fsize" 2>/dev/null || printf '%s B' "$fsize")" "$comp" \
+                    "$(numfmt --to=iec --suffix=B -- "$usize" 2>/dev/null || printf '%s B' "$usize")" \
+                    "$(numfmt --to=iec --suffix=B -- "$need" 2>/dev/null || printf '%s B' "$need")" >&2
+                printf '           system RAM disk: %s\n' "$sysram" >&2
+                printf '           custom RAM disk: %s (own mount with -m; needs root and that much of the system RAM to spare)\n' \
+                    "$(numfmt --to=iec --suffix=B -- $(( RAMSIZE * 1024 )) 2>/dev/null || printf '%s B' "$RAMSIZE")" >&2
+                printf '           max own RAM disk: %s (cannot be bigger than the RAM the system can spare; the gate re-checks when -m runs)\n' \
+                    "$(numfmt --to=iec --suffix=B -- "$memavail" 2>/dev/null || printf '%s B' "$memavail")" >&2
                 if [[ -z $bestmp ]] && (( MAXRAM )); then
                     # no existing RAM disk that big, but -m was given:
                     # size our own one to what the extract needs plus a
@@ -390,10 +420,8 @@ if [[ -n $BASE ]]; then
                     # what RAM can still be handed out without swapping).
                     # base_release() unmounts and removes it on exit.
                     # (tmpfs is lazy: size= is a ceiling, RAM is only used
-                    # as fast as the extract actually lands.)
-                    RAMSIZE=$(( (need + 8388607) / 1024 ))   # need + 8 MiB, in KiB
-                    memavail=$(awk '/^MemAvailable:/ { print $2 * 1024; exit }' /proc/meminfo 2>/dev/null)
-                    memavail=${memavail:-0}
+                    # as fast as the extract actually lands.  RAMSIZE and
+                    # memavail are set above, right after the tmpfs scan.)
                     if (( memavail >= need )); then
                         ramroot=$(mktemp -d "${TMPDIR:-/tmp}/pi_clean.ram.XXXXXX" 2>/dev/null) || ramroot=""
                         if [[ -n $ramroot ]] \
@@ -407,6 +435,19 @@ if [[ -n $BASE ]]; then
                         printf 'pi_clean: a RAM disk would need ~%s but the system only has ~%s to spare — using disk\n' \
                             "$(numfmt --to=iec --suffix=B -- "$need" 2>/dev/null || printf '%s B' "$need")" \
                             "$(numfmt --to=iec --suffix=B -- "$memavail" 2>/dev/null || printf '%s B' "$memavail")" >&2
+                    fi
+                elif [[ -z $bestmp ]]; then
+                    # no -m, and no existing RAM disk big enough either.
+                    # If the system could actually spare enough RAM for an
+                    # own mount, say so: with sudo and -m, pi_clean would
+                    # run this extract in RAM.  (Informational only — this
+                    # run still uses disk.)
+                    if (( memavail >= need )); then
+                        printf 'pi_clean: no RAM disk here is big enough for ~%s, but the system has ~%s to spare —\n' \
+                            "$(numfmt --to=iec --suffix=B -- "$need" 2>/dev/null || printf '%s B' "$need")" \
+                            "$(numfmt --to=iec --suffix=B -- "$memavail" 2>/dev/null || printf '%s B' "$memavail")" >&2
+                        printf '           with sudo and -m, pi_clean would mount its own RAM disk and run this extract in RAM:\n' >&2
+                        printf '           sudo pi_clean %s -m\n' "$BASE" >&2
                     fi
                 fi
                 if [[ -n $bestmp ]]; then

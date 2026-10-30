@@ -65,7 +65,13 @@ it is safe to remove. Nothing is deleted unless you answer `y`.
   when the system has that much RAM to spare (`MemAvailable`) — otherwise it
   says so and uses the disk. The mount lives for this run only and is gone on
   exit. Needs root. The old size-argument form (`-m 9G`) is refused with a
-  migration hint.
+  migration hint. Without `-m`, when an extract fits the system's spare RAM
+  but no existing RAM disk, pi_clean still uses the disk — and says that
+  `sudo pi_clean … -m` would have run it in RAM. Every compressed-image run
+  first shows the sizes at a glance: the image (compressed -> expanded, and
+  what that needs), the best system RAM disk (and whether it fits), what
+  pi_clean's own one would be sized to with `-m`, and the max an own RAM
+  disk can ever be (capped by the RAM the system can spare).
 - **`-t` / `--total`:** print only the reclaimable bytes — one bare number.
 - **`-V` / `--version`, `-h` / `--help`:** show the version / this help.
 
@@ -181,11 +187,14 @@ do bash "$s"; done
   each inherited tmpfs is overlaid with a fresh small one (never a remount —
   that would reconfigure the superblock *shared with the host*), so the
   existing disks cannot hold the fixture.  Three phases: `nom` (no `-m` →
-  disk, no RAM note at all); `notafford` (`-m` but the image needs more than
+  disk, plus the hint that with `sudo` and `-m` it could have run in RAM);
+  `notafford` (`-m` but the image needs more than
   `MemAvailable` can spare → refusal message, then disk); `own` (`-m` and
   affordable → a real own tmpfs mount, whose `size=` option the suite samples
-  from `/proc/mounts` mid-run and asserts is ≈ need + 8 MiB).  After each
-  phase it asserts the host's tmpfs sizes are exactly as before.  Scratch +
+  from `/proc/mounts` mid-run and asserts is ≈ need + 8 MiB).  Every phase
+  also asserts the sizes table (image + needs / system RAM disk / custom
+  RAM disk / max own RAM disk) is shown.  After each phase it asserts the host's tmpfs sizes are exactly
+  as before.  Scratch +
   shim live on real disk (`/var/tmp/pi_clean_test_maxram*`) because `/tmp`
   is one of the points the namespace overlays.
 * **Extract-then-source harnesses** key their `awk` anchors on the
