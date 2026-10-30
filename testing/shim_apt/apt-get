@@ -1,8 +1,0 @@
-#!/bin/bash
-# pi_clean test shim: fake apt-get. '-s autoremove' -> canned FAKE_OUT;
-# any other invocation (the real cleanup) is just logged to FAKE_APT_LOG.
-echo "APTGET $*" >> "${FAKE_APT_LOG:?}"
-if [[ $* == "-s autoremove" ]]; then
-    printf '%s\n' "${FAKE_OUT:?}"
-fi
-exit 0
