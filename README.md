@@ -63,13 +63,6 @@ curl -fsSL https://raw.githubusercontent.com/RichardMidnight/pi_clean/main/pi_cl
 [pi_clean.sh](https://github.com/RichardMidnight/pi_clean/blob/main/pi_clean.sh)
 in a browser and download it instead.)
 
-Then run it:
-
-```bash
-sudo bash pi_clean.sh         # from the folder you saved it in
-```
-
-
 — advanced users: install it on the `PATH` as `pi_clean` to drop the prefix:
 
 ```bash
@@ -86,7 +79,7 @@ for the system sections and for `DEV`/`IMG` targets.
 
 ```bash
 sudo bash pi_clean.sh                 compact read-only report of this box — deletes nothing
-sudo bash pi_clean.sh -v              full report: per-collection descriptions and sizes
+sudo bash pi_clean.sh -V              full report: per-collection descriptions and sizes
 sudo bash pi_clean.sh -c              deletion pass (per-item y/N still applies; logged)
 sudo bash pi_clean.sh -t              one bare number: reclaimable bytes
 

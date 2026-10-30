@@ -15,12 +15,11 @@
 #                  authors are not responsible for data loss or damage
 #   -y, --yes      answer y to every question (gate + all collections);
 #                  meaningful with -c
-#   -n, --dry-run  same as no flags (kept as an explicit alias)
 #   --no-log       run -c without logging into pi_clean.log beside the
 #                  script
-#   -v, --verbose  full report: per-collection descriptions and sizes
-#   -t, --total    dry run, print only reclaimable bytes (one number)
-#   -V, --version  show the pi_clean version and exit
+#   -V, --verbose  full report: per-collection descriptions and sizes
+#   -t, --total    print only reclaimable bytes (one number); deletes nothing
+#   -v, --version  show the pi_clean version and exit
 #   -h, --help     show this help and exit
 #   TARGET (plain argument)  work on another system root instead of this
 #                            machine — pass a directory, a /dev device, or an
@@ -86,7 +85,7 @@ usage() {
     printf 'pi_clean %s\n' "$PI_CLEAN_VER"
     printf 'pi_clean — scan a Raspberry Pi for reclaimable files\n\n'
     printf 'By default pi_clean only REPORTS — a compact summary of what could be\n'
-    printf 'cleaned and how much it would free. It deletes nothing. -v shows the full\n'
+    printf 'cleaned and how much it would free. It deletes nothing. -V shows the full\n'
     printf 'report with per-collection detail. Pass -c to enable the deletion pass;\n'
     printf 'every collection still asks y/N before it is removed. A -c run is logged\n'
     printf 'to pi_clean.log next to this script (append mode); --no-log skips that.\n'
@@ -100,13 +99,12 @@ usage() {
     printf '     for data loss or damage; you are responsible for what you delete.\n\n'
     printf 'Usage: pi_clean.sh [options] [TARGET]\n'
     printf '   (no arguments) compact read-only report (nothing deleted)\n'
-    printf '   -v, --verbose  full report: per-collection descriptions and sizes\n'
+    printf '   -V, --verbose  full report: per-collection descriptions and sizes\n'
     printf '   -c, --clean  enable the deletion pass (per-item y/N still applies)\n'
     printf '                   not available for compressed images — those are\n'
     printf '                   report-only: a clean pass would only reach a throwaway\n'
     printf '                   extract. Run without -c to see what could be freed\n'
     printf '   -y, --yes    answer y to every question (gate + all collections)\n'
-    printf '   -n, --dry-run  alias for the compact report (nothing deleted)\n'
     printf '   --no-log     run -c without writing pi_clean.log next to the script\n'
     printf '   -m, --maxramdrive\n'
     printf '                   when extracting a compressed image and no\n'
@@ -117,7 +115,7 @@ usage() {
     printf '                   the disk. Mounted just for this run, unmounted\n'
     printf '                   on exit. Needs root.\n'
     printf '   -t, --total  print only reclaimable bytes (one line)\n'
-    printf '   -V, --version  show the pi_clean version and exit\n'
+    printf '   -v, --version  show the pi_clean version and exit\n'
     printf '   -h, --help   show this help and exit\n'
     printf '   TARGET (plain argument, zero or one)  work on another system\n'
     printf '                   root instead of this machine:\n'
@@ -153,13 +151,12 @@ ORIGARGS="$*"   # captured before the option loop consumes $*
 
 while (( $# > 0 )); do
     case $1 in
-        -n|--dry-run) DRY=1 ;;
         -c|--clean)   CLEAN=1 ;;
-        -v|--verbose) VERBOSE=1 ;;
+        -V|--verbose) VERBOSE=1 ;;
         -y|--yes)     YES=1 ;;
         --no-log)     NOLOG=1 ;;
         -t|--total)   TOTAL=1 ;;
-        -V|--version) printf 'pi_clean %s\n' "$PI_CLEAN_VER"; exit 0 ;;
+        -v|--version) printf 'pi_clean %s\n' "$PI_CLEAN_VER"; exit 0 ;;
         -h|--help)    usage; exit 0 ;;
         -m|--maxramdrive|-maxramdrive)
             # no size argument — pi_clean sizes its own RAM disk itself
@@ -194,9 +191,9 @@ while (( $# > 0 )); do
 done
 
 # Default (no flags at all) = the compact read-only report: safest default
-# for a destructive tool. -v opts into the full per-collection transcript
+# for a destructive tool. -V opts into the full per-collection transcript
 # (what bare used to show); -c is the interactive deletion pass, whose
-# offerings are always on screen. Neither -v nor bare ever deletes.
+# offerings are always on screen. Neither -V nor bare ever deletes.
 if (( ! CLEAN )); then
     DRY=1
     if (( ! VERBOSE && ! TOTAL )); then

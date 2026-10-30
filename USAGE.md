@@ -53,7 +53,7 @@ it is safe to remove. Nothing is deleted unless you answer `y`.
 
 - **Default (no flags):** a compact read-only report — what could be cleaned and how
   much it would free. Deletes nothing.
-- **`-v` / `--verbose`:** the full report with per-collection descriptions and sizes.
+- **`-V` / `--verbose`:** the full report with per-collection descriptions and sizes.
 - **`-c` / `--clean`:** enables the deletion pass. Every collection **still asks
   `y/N`** before it is removed, and the run is appended to `pi_clean.log`.
   For **compressed images** (`*.xz`, `*.zst`, `*.zip`) it is refused (exit 2):
@@ -63,7 +63,6 @@ it is safe to remove. Nothing is deleted unless you answer `y`.
   for real is a separate decompress → clean → (shrink) → recompress workflow,
   with the image backed up first. pi_clean does not rewrite images.
 - **`-y` / `--yes`:** answer `y` to the gate and to every collection (used with `-c`).
-- **`-n` / `--dry-run`:** alias for the compact read-only report (nothing deleted).
 - **`--no-log`:** run `-c` without writing `pi_clean.log`.
 - **`-m` / `--maxramdrive`:** allow pi_clean to mount its **own** RAM disk
   when extracting a compressed image and no existing RAM disk is big enough:
@@ -79,7 +78,7 @@ it is safe to remove. Nothing is deleted unless you answer `y`.
   pi_clean's own one would be sized to with `-m`, and the max an own RAM
   disk can ever be (capped by the RAM the system can spare).
 - **`-t` / `--total`:** print only the reclaimable bytes — one bare number.
-- **`-V` / `--version`, `-h` / `--help`:** show the version / this help.
+- **`-v` / `--version`, `-h` / `--help`:** show the version / this help.
 
 Run with `sudo` to include the root-only (system) sections; without it, those are
 reported as *skipped — needs root* rather than erroring.
@@ -119,7 +118,7 @@ uninstalls applications — that listing is informational.
 
 ```bash
 pi_clean.sh                     compact read-only report (this box)
-pi_clean.sh -v                  full report with per-collection detail
+pi_clean.sh -V                  full report with per-collection detail
 pi_clean.sh -c                  deletion pass (per-item y/N still applies)
 sudo pi_clean.sh -c             include the root-only (system) sections
 pi_clean.sh -c -y               clean, auto-answering yes to everything
@@ -128,7 +127,7 @@ pi_clean.sh /media/pi/rootfs    a directory target (already mounted)
 pi_clean.sh /dev/sda            a block device — rootfs partition found, mounted rw, umounted on exit
 pi_clean.sh image.img.xz        an image — plain/.xz/.zstd/zip; compressed extracted first,
                                 attached as a loop device, detached on exit
-pi_clean.sh -V                  show the version and exit
+pi_clean.sh -v                  show the version and exit
 pi_clean.sh -h                  show the help
 ```
 
@@ -233,7 +232,7 @@ do bash "$s"; done
 
 * **Name is `pi_clean` for now** (`linux_clean` was considered and set
   aside); nothing Pi-specific is required of the box.
-* `-v` = verbose, `-V`/`--version` = version (`pi_clean 0.9.1`).
+* `-V` = verbose, `-v`/`--version` = version (`pi_clean 0.9.1`).
 * `--base` was **removed** 2026-10-29 in favor of the positional target.
   A one-time **migration hint** still recognizes `--base` (prints the new
   form, exits 2) — drop it in a later release if it has served its cycle.
